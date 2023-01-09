@@ -80,14 +80,7 @@ export default function Home() {
     }
     const resampled = await resampleBuffer(buffer, targetRate);
     setResampledLength({ value: resampled.length });
-    // @ts-ignore
     setInputBuffer(resampled);
-
-    const audioContext = new window.AudioContext();
-    const source = audioContext.createBufferSource();
-    source.buffer = resampled;
-    source.connect(audioContext.destination);
-    source.start();
   };
 
   const generateSpectrogram = () => {
@@ -202,9 +195,6 @@ export default function Home() {
                 >
                   Process
                 </button>
-                <div className="form-text">
-                  After loading the resampled audio will be played once.
-                </div>
               </div>
             </div>
             <div className="row mb-3">
