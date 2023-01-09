@@ -1,6 +1,9 @@
 import Head from "next/head";
 import "bootstrap/dist/css/bootstrap.css";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { resampleBuffer } from "../lib/resample";
+import stft from "../lib/stft";
+import melSpectrogram from "../lib/mel";
 
 export default function Home() {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -8,6 +11,9 @@ export default function Home() {
   const windowSizeRef = useRef<HTMLInputElement>(null);
   const strideSizeRef = useRef<HTMLInputElement>(null);
   const resampleRateRef = useRef<HTMLInputElement>(null);
+  const melBinsRef = useRef<HTMLInputElement>(null);
+  const minFreqRef = useRef<HTMLInputElement>(null);
+  const maxFreqRef = useRef<HTMLInputElement>(null);
 
   const [originalSampleRate, setOriginalSampleRate] = useState({
     value: 0,
@@ -18,6 +24,7 @@ export default function Home() {
   const [resampledLength, setResampledLength] = useState({
     value: 0,
   });
+  const [inputBuffer, setInputBuffer] = useState(null);
 
   const setPlayer = () => {
     if (
@@ -26,12 +33,15 @@ export default function Home() {
       fileSelectRef.current.files[0] &&
       audioRef.current
     ) {
+      const extension = fileSelectRef.current.files[0]!.name.split(
+        "."
+      ).pop() as string;
       var reader = new FileReader();
       reader.onload = async () => {
         if (reader.result === null) {
           return;
         }
-        const blob = new Blob([reader.result], { type: "audio/mp3" });
+        const blob = new Blob([reader.result], { type: "audio/" + extension });
         audioRef.current!.src = window.URL.createObjectURL(blob);
       };
       reader.readAsArrayBuffer(fileSelectRef.current.files[0]);
@@ -60,7 +70,7 @@ export default function Home() {
     }
   };
 
-  const resampleAudio = (buffer: AudioBuffer) => {
+  const resampleAudio = async (buffer: AudioBuffer) => {
     setOriginalLength({ value: buffer.length });
     setOriginalSampleRate({ value: buffer.sampleRate });
     const targetRate = Number(resampleRateRef.current?.value);
@@ -68,23 +78,73 @@ export default function Home() {
       alert("Sample rate must be in range [8000, 192000].");
       return;
     }
-    var audioCtx = new OfflineAudioContext(
-      buffer.numberOfChannels,
-      buffer.duration * targetRate,
+    const resampled = await resampleBuffer(buffer, targetRate);
+    setResampledLength({ value: resampled.length });
+    setInputBuffer(resampled);
+    // play the sound
+    const audioContext = new window.AudioContext();
+    const source = audioContext.createBufferSource();
+    source.buffer = resampled;
+    source.connect(audioContext.destination);
+    source.start();
+  };
+
+  const generateSpectrogram = () => {
+    if (inputBuffer.length == 0) {
+      return;
+    }
+    const targetRate = Number(resampleRateRef.current?.value);
+    const data = inputBuffer.getChannelData(0);
+    const windowSize = Number(windowSizeRef.current!.value);
+    const fftSize = (windowSize / 1000) * targetRate;
+    const strideSize = Number(strideSizeRef.current!.value);
+    const hopSize = (strideSize / 1000) * targetRate;
+    const stftOutput = stft(data, fftSize, hopSize);
+    const melBins = Number(melBinsRef.current?.value);
+    const minFreq = Number(minFreqRef.current?.value);
+    const maxFreq = Number(maxFreqRef.current?.value);
+    const msp = melSpectrogram(
+      stftOutput,
+      melBins,
+      minFreq,
+      maxFreq,
       targetRate
     );
-    var audioSrc = audioCtx.createBufferSource();
-    audioSrc.buffer = buffer;
-    audioSrc.connect(audioCtx.destination);
-    audioSrc.start();
-    audioCtx.startRendering().then((resampled: AudioBuffer) => {
-      setResampledLength({ value: resampled.length });
-      const audioContext = new window.AudioContext();
-      const source = audioContext.createBufferSource();
-      source.buffer = resampled;
-      source.connect(audioContext.destination);
-      source.start();
-    });
+    plotSpectrogram(msp, strideSize);
+  };
+
+  const plotSpectrogram = (stft: Float32Array[], samplesPerSlice: number) => {
+    let zArr = [];
+    for (let i = 0; i < stft.length; i++) {
+      for (let j = 0; j < stft[0].length; j++) {
+        if (zArr[j] == undefined) {
+          zArr[j] = [];
+        }
+        zArr[j][i] = stft[i][j];
+      }
+    }
+    const xArr = stft.map((value, index) => (index * samplesPerSlice) / 1000);
+    const yArr = [...Array(40).keys()];
+
+    const data = [
+      {
+        x: xArr,
+        y: yArr,
+        z: zArr,
+        type: "heatmap",
+      },
+    ];
+    const layout = {
+      title: "Log-mel spectrogram",
+      xaxis: {
+        title: "Time, s",
+      },
+      yaxis: {
+        title: "Mel bin",
+      },
+    };
+    const Plotly = require("plotly.js-dist-min");
+    Plotly.newPlot("plotDiv", data, layout);
   };
 
   return (
@@ -175,6 +235,8 @@ export default function Home() {
                 />
               </div>
             </div>
+            <hr />
+            <h3>Log-mel spectrogram</h3>
             <div className="row mb-3">
               <div className="col-sm-2">
                 <label className="form-label">Window size (ms)</label>
@@ -194,6 +256,47 @@ export default function Home() {
                   defaultValue="10"
                 />
               </div>
+              <div className="col-sm-2">
+                <label className="form-label">Mel bins</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  ref={melBinsRef}
+                  defaultValue="40"
+                />
+              </div>
+              <div className="col-sm-2">
+                <label className="form-label">Min frequency (Hz)</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  ref={minFreqRef}
+                  defaultValue="0"
+                />
+              </div>
+              <div className="col-sm-2">
+                <label className="form-label">Max frequency (Hz)</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  ref={maxFreqRef}
+                  defaultValue="4000"
+                />
+              </div>
+            </div>
+            <div className="row mb-3">
+              <div className="col-sm-6">
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  onClick={generateSpectrogram}
+                >
+                  Generate
+                </button>
+              </div>
+            </div>
+            <div className="row mb-3">
+              <div id="plotDiv"></div>
             </div>
           </form>
         </div>

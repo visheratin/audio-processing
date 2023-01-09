@@ -14,9 +14,16 @@
     "@types/react": "18.0.26",
     "@types/react-dom": "18.0.10",
     "bootstrap": "^5.2.3",
+    "kissfft-js": "^0.1.8",
     "next": "13.1.1",
+    "plotly.js-dist-min": "^2.17.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "typescript": "4.9.4"
+  },
+  "devDependencies": {
+    "@types/kissfft-js": "^0.1.1",
+    "@types/plotly.js-dist-min": "^2.3.1",
+    "node-polyfill-webpack-plugin": "^2.0.1"
   }
 }
