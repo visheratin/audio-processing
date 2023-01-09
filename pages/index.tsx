@@ -24,7 +24,7 @@ export default function Home() {
   const [resampledLength, setResampledLength] = useState({
     value: 0,
   });
-  const [inputBuffer, setInputBuffer] = useState(null);
+  const [inputBuffer, setInputBuffer] = useState<AudioBuffer | null>(null);
 
   const setPlayer = () => {
     if (
@@ -80,8 +80,9 @@ export default function Home() {
     }
     const resampled = await resampleBuffer(buffer, targetRate);
     setResampledLength({ value: resampled.length });
+    // @ts-ignore
     setInputBuffer(resampled);
-    // play the sound
+
     const audioContext = new window.AudioContext();
     const source = audioContext.createBufferSource();
     source.buffer = resampled;
@@ -90,7 +91,7 @@ export default function Home() {
   };
 
   const generateSpectrogram = () => {
-    if (inputBuffer.length == 0) {
+    if (inputBuffer === null || inputBuffer.length == 0) {
       return;
     }
     const targetRate = Number(resampleRateRef.current?.value);
@@ -114,10 +115,10 @@ export default function Home() {
   };
 
   const plotSpectrogram = (stft: Float32Array[], samplesPerSlice: number) => {
-    let zArr = [];
+    let zArr: number[][] = [];
     for (let i = 0; i < stft.length; i++) {
       for (let j = 0; j < stft[0].length; j++) {
-        if (zArr[j] == undefined) {
+        if (zArr[j] === undefined) {
           zArr[j] = [];
         }
         zArr[j][i] = stft[i][j];

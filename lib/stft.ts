@@ -28,8 +28,10 @@ const hanning = (length: number) => {
 
 const fft = (data: Float32Array): Float32Array => {
   const fftRunner = new KissFFT.FFTR(data.length);
+  // @ts-ignore
   const result = fftRunner.forward(data);
   fftRunner.dispose();
+  // @ts-ignore
   return result;
 };
 
