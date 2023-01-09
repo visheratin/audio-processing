@@ -83,6 +83,14 @@ export default function Home() {
     setInputBuffer(resampled);
   };
 
+  const playResampled = () => {
+    const audioContext = new window.AudioContext();
+    const source = audioContext.createBufferSource();
+    source.buffer = inputBuffer;
+    source.connect(audioContext.destination);
+    source.start();
+  };
+
   const generateSpectrogram = () => {
     if (inputBuffer === null || inputBuffer.length == 0) {
       return;
@@ -224,6 +232,17 @@ export default function Home() {
                   value={resampledLength.value}
                   disabled
                 />
+              </div>
+            </div>
+            <div className="row mb-3">
+              <div className="col-sm-6">
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  onClick={playResampled}
+                >
+                  Play resampled audio
+                </button>
               </div>
             </div>
             <hr />
