@@ -1,9 +1,10 @@
 import Head from "next/head";
 import "bootstrap/dist/css/bootstrap.css";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { resampleBuffer } from "../lib/resample";
 import stft from "../lib/stft";
 import melSpectrogram from "../lib/mel";
+// import { melSpectrogram } from "../lib/audio_utils";
 
 export default function Home() {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -43,6 +44,17 @@ export default function Home() {
         }
         const blob = new Blob([reader.result], { type: "audio/" + extension });
         audioRef.current!.src = window.URL.createObjectURL(blob);
+
+        const targetRate = Number(resampleRateRef.current?.value);
+        const audioContext = new window.AudioContext({
+          sampleRate: targetRate,
+        });
+        audioContext.decodeAudioData(
+          reader.result as ArrayBuffer,
+          (buffer: AudioBuffer) => {
+            setInputBuffer(buffer);
+          }
+        );
       };
       reader.readAsArrayBuffer(fileSelectRef.current.files[0]);
     }
@@ -60,7 +72,10 @@ export default function Home() {
         if (reader.result === null) {
           return;
         }
-        const audioContext = new window.AudioContext();
+        const targetRate = Number(resampleRateRef.current?.value);
+        const audioContext = new window.AudioContext({
+          sampleRate: targetRate,
+        });
         audioContext.decodeAudioData(
           reader.result as ArrayBuffer,
           resampleAudio
@@ -71,16 +86,17 @@ export default function Home() {
   };
 
   const resampleAudio = async (buffer: AudioBuffer) => {
-    setOriginalLength({ value: buffer.length });
-    setOriginalSampleRate({ value: buffer.sampleRate });
-    const targetRate = Number(resampleRateRef.current?.value);
-    if (targetRate < 8000 || targetRate > 192000) {
-      alert("Sample rate must be in range [8000, 192000].");
-      return;
-    }
-    const resampled = await resampleBuffer(buffer, targetRate);
-    setResampledLength({ value: resampled.length });
-    setInputBuffer(resampled);
+    setInputBuffer(buffer);
+    // setOriginalLength({ value: buffer.length });
+    // setOriginalSampleRate({ value: buffer.sampleRate });
+    // const targetRate = Number(resampleRateRef.current?.value);
+    // if (targetRate < 8000 || targetRate > 192000) {
+    //   alert("Sample rate must be in range [8000, 192000].");
+    //   return;
+    // }
+    // const resampled = await resampleBuffer(buffer, targetRate);
+    // setResampledLength({ value: resampled.length });
+    // setInputBuffer(resampled);
   };
 
   const playResampled = () => {
@@ -105,13 +121,7 @@ export default function Home() {
     const melBins = Number(melBinsRef.current?.value);
     const minFreq = Number(minFreqRef.current?.value);
     const maxFreq = Number(maxFreqRef.current?.value);
-    const msp = melSpectrogram(
-      stftOutput,
-      melBins,
-      minFreq,
-      maxFreq,
-      targetRate
-    );
+    const msp = melSpectrogram(stftOutput);
     plotSpectrogram(msp, strideSize);
   };
 
@@ -272,7 +282,7 @@ export default function Home() {
                   type="number"
                   className="form-control"
                   ref={melBinsRef}
-                  defaultValue="40"
+                  defaultValue="80"
                 />
               </div>
               <div className="col-sm-2">
@@ -290,7 +300,7 @@ export default function Home() {
                   type="number"
                   className="form-control"
                   ref={maxFreqRef}
-                  defaultValue="4000"
+                  defaultValue="8000"
                 />
               </div>
             </div>

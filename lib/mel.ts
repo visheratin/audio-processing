@@ -1,44 +1,42 @@
+import { readMelFilterbank } from "./filterbank";
 import pointwiseMultiply from "./util";
 
-const melSpectrogram = (
-  stftOutput: Float32Array[],
-  melCount = 40,
-  lowHz = 300,
-  highHz = 8000,
-  sampleRate: number
-) => {
-  const filterbank = generateMelFilterbank(
-    stftOutput[0].length,
-    melCount,
-    lowHz,
-    highHz,
-    sampleRate
-  );
+const melSpectrogram = (stftOutput: Float32Array[]) => {
+  const filterbank = readMelFilterbank();
   const result = [];
   for (let i = 0; i < stftOutput.length; i++) {
     result[i] = applyFilterbank(stftOutput[i], filterbank);
   }
-  return result;
-};
-
-const generateMelFilterbank = (
-  fftSize: number,
-  melCount: number,
-  minHz: number,
-  maxHz: number,
-  sampleRate: number
-) => {
-  const minMel = hzToMel(minHz);
-  const maxMel = hzToMel(maxHz);
-  const mels = linearSpace(minMel, maxMel, melCount + 2);
-  const hzs = mels.map((mel: number) => melToHz(mel));
-  const bins = hzs.map((hz: number) => hzToBin(hz, fftSize, sampleRate));
-  const length = bins.length - 2;
-  const filters = [];
-  for (let i = 0; i < length; i++) {
-    filters[i] = generateFilter(fftSize, bins[i], bins[i + 1], bins[i + 2]);
+  let maxVal = -1e10;
+  for (let i = 0; i < result.length; i++) {
+    for (let j = 0; j < result[i].length; j++) {
+      if (result[i][j] > maxVal) {
+        maxVal = result[i][j];
+      }
+    }
   }
-  return filters;
+  maxVal -= 8;
+  for (let i = 0; i < result.length; i++) {
+    for (let j = 0; j < result[i].length; j++) {
+      if (result[i][j] < maxVal) {
+        result[i][j] = maxVal;
+      }
+      result[i][j] = (result[i][j] + 4) / 4;
+    }
+  }
+  let min = 1e10,
+    max = -1e10;
+  for (let i = 0; i < result.length; i++) {
+    for (let j = 0; j < result[i].length; j++) {
+      if (result[i][j] < min) {
+        min = result[i][j];
+      }
+      if (result[i][j] > max) {
+        max = result[i][j];
+      }
+    }
+  }
+  return result;
 };
 
 const applyFilterbank = (
@@ -48,46 +46,12 @@ const applyFilterbank = (
   let out = new Float32Array(filterbank.length);
   for (let i = 0; i < filterbank.length; i++) {
     const win = pointwiseMultiply(fftEnergies, filterbank[i]);
-    out[i] = Math.log(sum(win));
-  }
-  return out;
-};
-
-const hzToMel = (hz: number): number => {
-  return 1127.01048 * Math.log(1 + hz / 700);
-};
-
-const melToHz = (mel: number): number => {
-  return 700 * (Math.exp(mel / 1127.01048) - 1);
-};
-
-const hzToBin = (freq: number, fftSize: number, sampleRate: number): number => {
-  return Math.floor(((fftSize + 1) * freq) / (sampleRate / 2));
-};
-
-const generateFilter = (
-  length: number,
-  startIndex: number,
-  peakIndex: number,
-  endIndex: number
-): Float32Array => {
-  const result = new Float32Array(length);
-  const deltaUp = 1.0 / (peakIndex - startIndex);
-  for (let i = startIndex; i < peakIndex; i++) {
-    result[i] = (i - startIndex) * deltaUp;
-  }
-  const deltaDown = 1.0 / (endIndex - peakIndex);
-  for (let i = peakIndex; i < endIndex; i++) {
-    result[i] = 1 - (i - peakIndex) * deltaDown;
-  }
-  return result;
-};
-
-const linearSpace = (start: number, end: number, count: number): number[] => {
-  const delta = (end - start) / (count + 1);
-  let out = [];
-  for (let i = 0; i < count; i++) {
-    out[i] = start + delta * i;
+    let minVal = 1e-10;
+    let value = sum(win);
+    if (value < minVal) {
+      value = minVal;
+    }
+    out[i] = Math.log10(value);
   }
   return out;
 };

@@ -3,7 +3,7 @@ import pointwiseMultiply from "./util";
 
 const stft = (input: Float32Array, fftSize: number, hopSize: number) => {
   const bufferCount = Math.floor((input.length - fftSize) / hopSize) + 1;
-  let matrix = range(bufferCount).map((x) => new Float32Array(fftSize));
+  let matrix = range(bufferCount).map((x) => new Float32Array(fftSize / 2));
   for (let i = 0; i < bufferCount; i++) {
     const ind = i * hopSize;
     const buffer = input.slice(ind, ind + fftSize);
